@@ -47,10 +47,11 @@ all: install lint test
 
 deploy-app-runner:
 	aws cloudformation create-stack \
-		--stack-name $(STACK_NAME) \
-		--template-body file://infrastructure/app-runner.yaml \
+		--stack-name $(CF_STACK_NAME) \
+		--template-body file://infra/app-runner.yaml \
 		--capabilities CAPABILITY_NAMED_IAM \
-		--parameters ParameterKey=AppStackName,ParameterValue=$(STACK_NAME)
+		--parameters ParameterKey=AppStackName,ParameterValue=$(CF_STACK_NAME) \
+			ParameterKey=AppName,ParameterValue=$(APP_NAME) 
 
 deploy-ecs-fargate:
 	#tbd

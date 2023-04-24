@@ -1,0 +1,95 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create AWS infrastructure to deploy ML Model on AWS App Runner.
+Parameters:
+  AppName:
+    Description: An Application name that will be prefixed to resource names
+    Type: String
+  AppStackName:
+    Description: An Application name that will be prefixed to resource names
+    Type: String
+Resources:
+  AppRunnerServiceAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppStackName}-service-access-role
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [build.apprunner.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: AmazonAppRunnerExecutionRolePolicy
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+                - 'ecr:GetAuthorizationToken'
+                - 'ecr:BatchCheckLayerAvailability'
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'ecr:BatchGetImage'
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: '*'
+  
+  AppRunner:  
+    DependsOn: AppRunnerServiceAccessRole
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: !Sub ${AppStackName}-apprunner
+      NetworkConfiguration:
+        EgressConfiguration:
+          EgressType: DEFAULT
+        IngressConfiguration:
+          IsPubliclyAccessible: True
+      SourceConfiguration:
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerServiceAccessRole.Arn
+        AutoDeploymentsEnabled: false
+        ImageRepository:
+          ImageIdentifier: 
+            Fn::Join:
+              - ''
+              - - Ref: AWS::AccountId
+                - '.dkr.ecr.'
+                - Ref: AWS::Region
+                - '.amazonaws.com/'
+                - !Sub ${AppName}
+                - ':latest'  
+          ImageRepositoryType: ECR 
+          ImageConfiguration:
+            Port: 8080
+            RuntimeEnvironmentVariables:
+              -
+                Name: Name
+                Value: !Ref AppStackName
+              -
+                Name: PROJECT
+                Value: Example of ML Inference App Runner
+      InstanceConfiguration:
+        Cpu: 1 vCPU
+        Memory: 4 GB
+      Tags:
+        - Key: Name
+          Value: !Ref AppStackName     
+        - Key: Project
+          Value: Example of ML Inference App Runner
+Outputs:
+  AppRunnerServiceAccessRole:
+    Description: The ARN of the App Runner Service role
+    Value: !GetAtt 'AppRunnerServiceAccessRole.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'AppRunnerServiceAccessRole' ] ]
+  AppRunnerServiceUrl:
+    Description: App Runner Service URL Healthcheck Endpoint
+    Value: !Join [ "",
+          [
+            "https://",
+            !GetAtt AppRunner.ServiceUrl,
+            "/Health"            
+          ]
+        ]

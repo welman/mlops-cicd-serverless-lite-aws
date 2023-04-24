@@ -12,6 +12,9 @@ app = Flask(__name__)
 LOG = create_logger(app)
 LOG.setLevel(logging.INFO)
 
+@app.route("/health")
+def health():
+    return "success"
 
 @app.route("/")
 def home():
